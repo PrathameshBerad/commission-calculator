@@ -6,6 +6,7 @@ import { PLATFORMS, getCategoriesForPlatform } from '@/lib/platformFees'
 import { getSuggestedGstRate } from '@/lib/gstLogic'
 import { PlatformSelector } from './PlatformSelector'
 import { type PlatformId, CURRENCY_SYMBOLS } from '@/types'
+import { calculateDynamicShipping } from '@/lib/shippingLogic'
 import { Info, RotateCcw, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -114,8 +115,20 @@ export function CalculatorForm() {
     setInput({ [key]: isNaN(num) ? 0 : Math.max(0, num) })
   }
 
+  // Derive dynamic shipping metrics for UI sync
+  const dynamicShipping = calculateDynamicShipping(
+    input.platform,
+    input.weightInGrams || 500,
+    input.shippingZone || 'national',
+    input.fulfillmentMode
+  )
+
+  const displayPickAndPack = input.useCustomShippingOverride ? input.pickAndPackFee : dynamicShipping.pickAndPackFee
+  const displayPlatformShipping = input.useCustomShippingOverride ? input.platformShippingFee : dynamicShipping.shippingFee
+  const displaySelfShipping = input.useCustomShippingOverride ? input.shippingCost : dynamicShipping.shippingFee
+
   return (
-    <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-6">
+    <div className="rounded-2xl border border-border/40 bg-card p-4 sm:p-6 shadow-sm flex flex-col h-full relative">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -268,7 +281,47 @@ export function CalculatorForm() {
           </div>
         </div>
 
+        {/* Logistics Profile */}
+        <div className="col-span-full mt-2 pt-4 pb-2 border-t border-border/40">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Logistics & Weight Config</h3>
+            <ToggleOption
+              label="Manual Override"
+              tooltip="Unlock shipping fields to manually enter custom costs instead of physics-based tiers."
+              checked={input.useCustomShippingOverride}
+              onChange={(v) => setInput({ useCustomShippingOverride: v })}
+              color="#F59E0B"
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 mb-4">
+            <InputField label="Product Weight (grams)" tooltipKey="quantity">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={input.weightInGrams || ''}
+                onChange={(e) => handleNumberInput('weightInGrams', e.target.value)}
+                placeholder="500"
+                className={cn(inputClass, 'pl-3')}
+              />
+            </InputField>
+
+            <InputField label="Shipping Zone" tooltipKey="quantity">
+              <select
+                value={input.shippingZone}
+                onChange={(e) => setInput({ shippingZone: e.target.value as any })}
+                className={selectClass}
+              >
+                <option value="local">Local (Intra-city)</option>
+                <option value="regional">Regional (Intra-zone)</option>
+                <option value="national">National (Inter-zone)</option>
+              </select>
+            </InputField>
+          </div>
+        </div>
+
         {/* Shipping / Fulfillment Costs */}
+        <div className="col-span-full grid gap-4 sm:grid-cols-2">
         {input.fulfillmentMode === 'platform' ? (
           <>
             <InputField
@@ -280,10 +333,11 @@ export function CalculatorForm() {
                 type="number"
                 min="0"
                 step="any"
-                value={input.pickAndPackFee || ''}
+                disabled={!input.useCustomShippingOverride}
+                value={displayPickAndPack || 0}
                 onChange={(e) => handleNumberInput('pickAndPackFee', e.target.value)}
-                placeholder="15"
-                className={cn(inputClass, 'pl-9 border-[#EC4899]/30 focus:border-[#EC4899] bg-[#EC4899]/5')}
+                placeholder="0"
+                className={cn(inputClass, 'pl-9 border-[#EC4899]/30 focus:border-[#EC4899] bg-[#EC4899]/5 disabled:opacity-60')}
               />
             </InputField>
             <InputField
@@ -295,10 +349,11 @@ export function CalculatorForm() {
                 type="number"
                 min="0"
                 step="any"
-                value={input.platformShippingFee || ''}
+                disabled={!input.useCustomShippingOverride}
+                value={displayPlatformShipping || 0}
                 onChange={(e) => handleNumberInput('platformShippingFee', e.target.value)}
-                placeholder="40"
-                className={cn(inputClass, 'pl-9 border-[#0EA5E9]/30 focus:border-[#0EA5E9] bg-[#0EA5E9]/5')}
+                placeholder="0"
+                className={cn(inputClass, 'pl-9 border-[#0EA5E9]/30 focus:border-[#0EA5E9] bg-[#0EA5E9]/5 disabled:opacity-60')}
               />
             </InputField>
           </>
@@ -312,13 +367,15 @@ export function CalculatorForm() {
               type="number"
               min="0"
               step="any"
-              value={input.shippingCost || ''}
+              disabled={!input.useCustomShippingOverride}
+              value={displaySelfShipping || 0}
               onChange={(e) => handleNumberInput('shippingCost', e.target.value)}
-              placeholder="50"
-              className={cn(inputClass, 'pl-9')}
+              placeholder="0"
+              className={cn(inputClass, 'pl-9 disabled:opacity-60 disabled:bg-muted/30')}
             />
           </InputField>
         )}
+        </div>
 
         {/* Currency override */}
         <InputField label="Currency">
