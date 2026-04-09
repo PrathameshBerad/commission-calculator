@@ -76,10 +76,16 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
     (c) => c.name === input.category
   ) ?? platform.categories[0]
 
+  let derivedCommissionRate = categoryConfig.commissionRate
+  // 2026 E-commerce update: Amazon India and Flipkart 0% commission under 1000
+  if (['amazon-in', 'flipkart'].includes(input.platform) && P <= 1000) {
+    derivedCommissionRate = 0
+  }
+
   // Override with custom rates if provided
   const effectiveCategoryConfig = {
     ...categoryConfig,
-    commissionRate: customCommissionRate ?? categoryConfig.commissionRate,
+    commissionRate: customCommissionRate ?? derivedCommissionRate,
     fixedFee: customFixedFee ?? (categoryConfig.fixedFee ?? 0),
   }
 
@@ -218,23 +224,10 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
 
   if (gstOnFees > 0) {
     feeBreakdown.push({
-      name: 'GST on Fees (ITC)',
+      name: '18% GST on Platform Fees',
       amount: round2(gstOnFees * Q),
       color: '#F59E0B',
-      tooltip: '18% GST on platform fees. Can be claimed as Input Tax Credit',
-    })
-  }
-
-  const taxableValue = isGstInclusive && calculateProductGst
-    ? P / (1 + productGstRate)
-    : P
-
-  if (outputGstAmount > 0) {
-    feeBreakdown.push({
-      name: `Product GST (Output) ${isGstInclusive ? 'Inclusive' : 'Exclusive'}`,
-      amount: outputGstAmount,
-      color: '#10B981',
-      tooltip: `Output GST at ${(productGstRate * 100).toFixed(1)}%. Taxable value: ${platform.currency}${round2(taxableValue * Q)}`,
+      tooltip: '18% tax charged by the platform on their referral and fixed fees. This offsets your final tax liability.',
     })
   }
 

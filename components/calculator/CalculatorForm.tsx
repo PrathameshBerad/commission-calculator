@@ -6,7 +6,7 @@ import { PLATFORMS, getCategoriesForPlatform } from '@/lib/platformFees'
 import { getSuggestedGstRate } from '@/lib/gstLogic'
 import { PlatformSelector } from './PlatformSelector'
 import type { PlatformId } from '@/types'
-import { Info, RotateCcw } from 'lucide-react'
+import { Info, RotateCcw, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const TOOLTIP_MAP: Record<string, string> = {
@@ -142,6 +142,42 @@ export function CalculatorForm() {
           value={input.platform}
           onChange={(id: PlatformId) => setInput({ platform: id })}
         />
+        
+        {/* Educational 2026 Timeline Alert */}
+        {['amazon-in', 'flipkart'].includes(input.platform) && (
+          <div
+            className={cn(
+              'mt-3 flex items-start gap-3 rounded-xl border px-4 py-3 transition-colors',
+              input.sellingPrice && input.sellingPrice <= 1000
+                ? 'border-[#00E5A0]/30 bg-[#00E5A0]/5'
+                : 'border-border/40 bg-muted/10'
+            )}
+          >
+            <div className="flex-shrink-0 mt-0.5">
+              {input.sellingPrice && input.sellingPrice <= 1000 ? (
+                <CheckCircle2 className="h-4 w-4 text-[#00E5A0]" />
+              ) : (
+                <Info className="h-4 w-4 text-blue-400" />
+              )}
+            </div>
+            <div>
+              <p
+                className={cn(
+                  'text-sm font-semibold transition-colors',
+                  input.sellingPrice && input.sellingPrice <= 1000 ? 'text-[#00E5A0]' : 'text-foreground'
+                )}
+              >
+                {input.sellingPrice && input.sellingPrice <= 1000
+                  ? '0% Commission Active'
+                  : '2026 E-commerce Tracker'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                To fight Meesho, this platform dropped referral fees to 0% for items under ₹1,000 in early 2026.
+                {!(input.sellingPrice && input.sellingPrice <= 1000) && ' Lower your selling price below ₹1,000 to qualify.'}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Divider */}
