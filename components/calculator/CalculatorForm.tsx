@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useCalculatorStore } from '@/lib/store'
 import { PLATFORMS, getCategoriesForPlatform } from '@/lib/platformFees'
+import { getSuggestedGstRate } from '@/lib/gstLogic'
 import { PlatformSelector } from './PlatformSelector'
 import type { PlatformId } from '@/types'
 import { Info, RotateCcw } from 'lucide-react'
@@ -16,8 +17,10 @@ const TOOLTIP_MAP: Record<string, string> = {
   cogs: 'Your total cost to produce/source one unit of the product.',
   quantity: 'Number of units to calculate for (scales total fees and profit).',
   isCOD: 'Cash on Delivery adds extra charges (typically 2% of sale value in India).',
-  includeGST: 'GST @18% is charged by Indian marketplaces on their commission and fixed fees.',
+  includeGST: 'Input Tax Credit (ITC): GST @18% charged by Indian marketplaces on their fees.',
   includeTCS: 'TCS @1% is withheld by Indian marketplaces on your total sales. Recoverable via GST return.',
+  productGst: 'Output GST: The GST applicable on the actual product sold. Auto-calculated based on category and price.',
+  gstInclusive: 'Is the Selling Price already inclusive of this Product GST?',
 }
 
 function FieldTooltip({ text }: { text: string }) {
@@ -94,6 +97,17 @@ export function CalculatorForm() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input.platform])
+
+  // Auto-calculate suggested GST rate
+  useEffect(() => {
+    if (input.calculateProductGst && ['amazon-in', 'flipkart', 'meesho'].includes(input.platform)) {
+      const suggestedRate = getSuggestedGstRate(input.category, input.sellingPrice, input.platform);
+      if (input.productGstRate !== suggestedRate) {
+        setInput({ productGstRate: suggestedRate })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input.category, input.sellingPrice, input.platform, input.calculateProductGst])
 
   const handleNumberInput = (key: keyof typeof input, value: string) => {
     const num = parseFloat(value)
@@ -234,12 +248,66 @@ export function CalculatorForm() {
         </InputField>
       </div>
 
-      {/* Toggles */}
-      <div className="space-y-3">
+      {/* Taxes & Compliance (New Section) */}
+      <div className="space-y-4">
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          Options
+          Taxes & Compliance
         </p>
-        <div className="grid gap-2 sm:grid-cols-3">
+
+        {['amazon-in', 'flipkart', 'meesho'].includes(input.platform) && (
+          <div className="space-y-4 rounded-xl border border-border/40 p-4 bg-muted/10">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <span className="text-sm font-medium">Calculate Product GST (Output GST)</span>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Tax required on the product sold.
+                </p>
+              </div>
+              <ToggleOption
+                label={input.calculateProductGst ? 'Enabled' : 'Disabled'}
+                tooltip={TOOLTIP_MAP.productGst}
+                checked={input.calculateProductGst}
+                onChange={(v) => setInput({ calculateProductGst: v })}
+                color="#10B981"
+              />
+            </div>
+
+            {input.calculateProductGst && (
+              <div className="grid gap-4 sm:grid-cols-2 pt-3 border-t border-border/30">
+                <InputField label="Product GST Rate" tooltipKey="productGst">
+                  <select
+                    value={input.productGstRate}
+                    onChange={(e) => setInput({ productGstRate: parseFloat(e.target.value) })}
+                    className={selectClass}
+                  >
+                    <option value={0}>0% (Exempt)</option>
+                    <option value={0.03}>3% (Jewelry)</option>
+                    <option value={0.05}>5%</option>
+                    <option value={0.12}>12%</option>
+                    <option value={0.18}>18% (Standard)</option>
+                    <option value={0.28}>28%</option>
+                  </select>
+                </InputField>
+
+                <InputField label="Price includes GST?" tooltipKey="gstInclusive">
+                  <select
+                    value={input.isGstInclusive ? 'yes' : 'no'}
+                    onChange={(e) => setInput({ isGstInclusive: e.target.value === 'yes' })}
+                    className={selectClass}
+                  >
+                    <option value="yes">Yes (Inclusive)</option>
+                    <option value="no">No (Exclusive)</option>
+                  </select>
+                </InputField>
+                <div className="sm:col-span-2 text-xs text-muted-foreground/80 mt-[-4px]">
+                  <em>Rate auto-updates based on {platform?.shortName} category {input.category} & price.</em>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="grid gap-2 sm:grid-cols-3 mt-4">
           {/* COD Toggle */}
           {platform?.hasCOD && (
             <ToggleOption
@@ -254,7 +322,7 @@ export function CalculatorForm() {
           {/* GST Toggle */}
           {platform?.hasGST && (
             <ToggleOption
-              label="Include GST (18%)"
+              label="Fee GST (ITC)"
               tooltip={TOOLTIP_MAP.includeGST}
               checked={input.includeGST}
               onChange={(v) => setInput({ includeGST: v })}

@@ -64,6 +64,9 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
     isCOD,
     includeGST,
     includeTCS,
+    calculateProductGst,
+    productGstRate,
+    isGstInclusive,
     customCommissionRate,
     customFixedFee,
   } = input
@@ -129,11 +132,30 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
   // 11. Net Payout
   const netPayout = round2(grossRevenue - totalFees)
 
-  // 12. COGS total
+  // 12. Output GST (Product GST)
+  let outputGstAmount = 0
+  if (calculateProductGst && productGstRate > 0 && ['amazon-in', 'flipkart', 'meesho'].includes(input.platform)) {
+    if (isGstInclusive) {
+      // P = Base + Base*Rate => Base = P / (1+Rate)
+      // GST = P - Base = P - P / (1+Rate) = P * Rate / (1+Rate)
+      const gstPerUnit = P - (P / (1 + productGstRate))
+      outputGstAmount = round2(gstPerUnit * Q)
+    } else {
+      const gstPerUnit = P * productGstRate
+      outputGstAmount = round2(gstPerUnit * Q)
+    }
+  }
+
+  // 13. Net GST Payable to Government = Output GST - Input Tax Credit (GST on fees)
+  // If ITC is more than Output GST, it's a credit, not payable (kept at 0 minimum for profit calculation)
+  // Actually, usually ITC offsets Output GST. If it's negative, it's a credit. We subtract netGstPayable from profit.
+  const netGstPayable = round2(outputGstAmount - (gstOnFees * Q))
+
+  // 14. COGS total
   const cogsTotal = round2(COGS * Q)
 
-  // 13. Profit
-  const profit = round2(netPayout - cogsTotal)
+  // 15. Profit
+  const profit = round2(netPayout - cogsTotal - netGstPayable)
 
   // 14. Profit Margin (profit / gross revenue * 100)
   const profitMargin =
@@ -162,11 +184,11 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
         )
       : 0
 
-  // 17. Effective commission rate
+  // 18. Effective commission rate
   const effectiveCommissionRate =
     P > 0 ? round2((totalFeesPerUnit / P) * 100) : 0
 
-  // 18. Fee breakdown for chart
+  // 19. Fee breakdown for chart
   const feeBreakdown: FeeBreakdownItem[] = [
     {
       name: 'Referral Fee',
@@ -196,10 +218,23 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
 
   if (gstOnFees > 0) {
     feeBreakdown.push({
-      name: 'GST on Fees (18%)',
+      name: 'GST on Fees (ITC)',
       amount: round2(gstOnFees * Q),
       color: '#F59E0B',
-      tooltip: '18% GST applied on platform fees',
+      tooltip: '18% GST on platform fees. Can be claimed as Input Tax Credit',
+    })
+  }
+
+  const taxableValue = isGstInclusive && calculateProductGst
+    ? P / (1 + productGstRate)
+    : P
+
+  if (outputGstAmount > 0) {
+    feeBreakdown.push({
+      name: `Product GST (Output) ${isGstInclusive ? 'Inclusive' : 'Exclusive'}`,
+      amount: outputGstAmount,
+      color: '#10B981',
+      tooltip: `Output GST at ${(productGstRate * 100).toFixed(1)}%. Taxable value: ${platform.currency}${round2(taxableValue * Q)}`,
     })
   }
 
@@ -241,6 +276,8 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
     codFee: round2(codFee * Q),
     totalFees,
     netPayout,
+    outputGstAmount,
+    netGstPayable,
     profit,
     profitMargin,
     roi,
@@ -315,6 +352,8 @@ export function generateCSVData(
     ['COD Fee', `${currency} ${output.codFee}`],
     ['Total Fees', `${currency} ${output.totalFees}`],
     ['Net Payout', `${currency} ${output.netPayout}`],
+    ['Output GST', `${currency} ${output.outputGstAmount}`],
+    ['Net GST Payable', `${currency} ${output.netGstPayable}`],
     ['Profit', `${currency} ${output.profit}`],
     ['Profit Margin', `${output.profitMargin}%`],
     ['ROI', `${output.roi}%`],
