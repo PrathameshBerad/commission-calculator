@@ -249,22 +249,76 @@ export function CalculatorForm() {
           />
         </InputField>
 
-        {/* Shipping Cost */}
-        <InputField
-          label="Shipping Cost (per unit)"
-          tooltipKey="shippingCost"
-          prefix={platform?.currency ?? ''}
-        >
-          <input
-            type="number"
-            min="0"
-            step="any"
-            value={input.shippingCost || ''}
-            onChange={(e) => handleNumberInput('shippingCost', e.target.value)}
-            placeholder="50"
-            className={cn(inputClass, 'pl-9')}
-          />
-        </InputField>
+        {/* Fulfillment Mode Toggle */}
+        <div className="col-span-full pt-2">
+          <div className="flex items-center justify-between rounded-xl border border-border/40 bg-muted/10 px-4 py-3">
+            <div className="space-y-1">
+              <span className="text-sm font-medium">Use Platform Fulfillment?</span>
+              <p className="text-xs text-muted-foreground mr-4">
+                Enable this if using FBA or Flipkart Assured. Turns shipping into a platform fee to claim 18% ITC.
+              </p>
+            </div>
+            <ToggleOption
+              label={input.fulfillmentMode === 'platform' ? 'FBA/FBF' : 'Self-Ship'}
+              tooltip="Switches from standard shipping costs to platform-billed Pick & Pack + Weight Handling fees."
+              checked={input.fulfillmentMode === 'platform'}
+              onChange={(v) => setInput({ fulfillmentMode: v ? 'platform' : 'seller' })}
+              color="#3B82F6"
+            />
+          </div>
+        </div>
+
+        {/* Shipping / Fulfillment Costs */}
+        {input.fulfillmentMode === 'platform' ? (
+          <>
+            <InputField
+              label="Pick & Pack Fee"
+              tooltipKey="pickAndPackFee"
+              prefix={platform?.currency ?? ''}
+            >
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={input.pickAndPackFee || ''}
+                onChange={(e) => handleNumberInput('pickAndPackFee', e.target.value)}
+                placeholder="15"
+                className={cn(inputClass, 'pl-9 border-[#EC4899]/30 focus:border-[#EC4899] bg-[#EC4899]/5')}
+              />
+            </InputField>
+            <InputField
+              label="FBA / FBF Shipping"
+              tooltipKey="platformShipping"
+              prefix={platform?.currency ?? ''}
+            >
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={input.platformShippingFee || ''}
+                onChange={(e) => handleNumberInput('platformShippingFee', e.target.value)}
+                placeholder="40"
+                className={cn(inputClass, 'pl-9 border-[#0EA5E9]/30 focus:border-[#0EA5E9] bg-[#0EA5E9]/5')}
+              />
+            </InputField>
+          </>
+        ) : (
+          <InputField
+            label="Shipping Cost (Self-Ship)"
+            tooltipKey="shippingCost"
+            prefix={platform?.currency ?? ''}
+          >
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={input.shippingCost || ''}
+              onChange={(e) => handleNumberInput('shippingCost', e.target.value)}
+              placeholder="50"
+              className={cn(inputClass, 'pl-9')}
+            />
+          </InputField>
+        )}
 
         {/* Currency override */}
         <InputField label="Currency">

@@ -56,20 +56,15 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
   const platform = PLATFORMS[input.platform]
   if (!platform) throw new Error(`Unknown platform: ${input.platform}`)
 
-  const {
-    sellingPrice: P,
-    shippingCost: S,
-    cogs: COGS,
-    quantity: Q,
-    isCOD,
-    includeGST,
-    includeTCS,
-    calculateProductGst,
-    productGstRate,
-    isGstInclusive,
-    customCommissionRate,
-    customFixedFee,
-  } = input
+  const P = input.sellingPrice
+  // If platform fulfillment, override S with the platform's native shipping fee
+  const S = input.fulfillmentMode === 'platform' ? input.platformShippingFee : input.shippingCost
+  const COGS = input.cogs
+  const Q = input.quantity
+  const { isCOD, includeGST, includeTCS, productGstRate, calculateProductGst, isGstInclusive, customCommissionRate, customFixedFee } = input
+
+  // Determine FBA pick and pack if toggled
+  const pickAndPackFee = input.fulfillmentMode === 'platform' ? input.pickAndPackFee : 0
 
   // Find category config
   const categoryConfig = platform.categories.find(
@@ -105,8 +100,13 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
     : 0
 
   // 4. GST on platform fees (India platforms)
+  // For FBA, pick & pack and Amazon-billed shipping also attract the 18% platform GST block!
+  let taxablePlatformFees = referralFee + fixedFee + codFee
+  if (input.fulfillmentMode === 'platform') {
+    taxablePlatformFees += pickAndPackFee + S
+  }
   const gstOnFees = includeGST && platform.hasGST
-    ? round2((referralFee + fixedFee + codFee) * platform.gstRate)
+    ? round2(taxablePlatformFees * platform.gstRate)
     : 0
 
   // 5. TCS (India: 1% withheld on total sale value)
@@ -126,6 +126,7 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
   const totalFeesPerUnit = round2(
     referralFee +
     fixedFee +
+    pickAndPackFee +
     codFee +
     gstOnFees +
     tcs +
@@ -193,7 +194,7 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
       : productGstRate // exclusive GST rate directly multiplying P
 
     const totalVarRate = effectiveCommRate + varPaymentRate + outputGstVarRate
-    const totalFixedCosts = COGS + fixedFee + S + (S * varPaymentRate) + platform.paymentFixed
+    const totalFixedCosts = COGS + fixedFee + pickAndPackFee + S + (S * varPaymentRate) + platform.paymentFixed
 
     breakEvenPrice = totalVarRate < 1 
       ? round2(totalFixedCosts / (1 - totalVarRate))
@@ -201,8 +202,13 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
   } else {
     // Unregistered seller: GST on fees is an unrecoverable pure cost. No Output GST logic.
     const gstMultiplier = includeGST && platform.hasGST ? 1 + platform.gstRate : 1
+    
+    // For platform mode, Pick & Pack and S are multiplied by GST as well
+    const fixedPlatformService = input.fulfillmentMode === 'platform' ? fixedFee + pickAndPackFee + S : fixedFee
+    const shippingBase = input.fulfillmentMode === 'platform' ? 0 : S // shipping is already in fixedPlatformService
+
     const totalVarRate = (effectiveCommRate * gstMultiplier) + varPaymentRate
-    const totalFixedCosts = COGS + (fixedFee * gstMultiplier) + S + (S * varPaymentRate) + platform.paymentFixed
+    const totalFixedCosts = COGS + (fixedPlatformService * gstMultiplier) + shippingBase + (S * varPaymentRate) + platform.paymentFixed
 
     breakEvenPrice = totalVarRate < 1
       ? round2(totalFixedCosts / (1 - totalVarRate))
@@ -226,8 +232,20 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
       amount: round2(fixedFee * Q),
       color: '#8B5CF6',
       tooltip: 'Flat fee per order',
-    },
-    {
+    })
+  }
+
+  if (pickAndPackFee > 0) {
+    feeBreakdown.push({
+      name: 'Pick & Pack Fee',
+      amount: round2(pickAndPackFee * Q),
+      color: '#EC4899', // pinkish
+      tooltip: 'Fulfillment processing fee billed by the platform',
+    })
+  }
+
+  if (paymentFeeAmount > 0) {
+    feeBreakdown.push({
       name: 'Payment Fee',
       amount: round2(paymentFeeAmount * Q),
       color: '#3B82F6',

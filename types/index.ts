@@ -65,6 +65,9 @@ export interface CalculatorInput {
   isGstInclusive: boolean
   customCommissionRate?: number
   customFixedFee?: number
+  fulfillmentMode: 'seller' | 'platform'
+  pickAndPackFee: number
+  platformShippingFee: number
 }
 
 // Individual fee breakdown item
@@ -116,6 +119,9 @@ export const DEFAULT_INPUT: CalculatorInput = {
   calculateProductGst: true,
   productGstRate: 0.18,
   isGstInclusive: true,
+  fulfillmentMode: 'seller',
+  pickAndPackFee: 15,
+  platformShippingFee: 40,
 }
 
 // Currency symbols map
