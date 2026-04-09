@@ -7,7 +7,7 @@ import { PLATFORMS } from '@/lib/platformFees'
 import {
   TrendingUp,
   TrendingDown,
-  DollarSign,
+  Wallet,
   Percent,
   Target,
   AlertTriangle,
@@ -124,7 +124,7 @@ export function ResultsPanel() {
           value={fmt(output.netPayout)}
           subValue={`After all fees for ${input.quantity} unit${input.quantity > 1 ? 's' : ''}`}
           highlight
-          icon={DollarSign}
+          icon={Wallet}
         />
         <MetricCard
           label="Total Profit"
