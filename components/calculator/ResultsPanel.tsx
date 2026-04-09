@@ -7,7 +7,7 @@ import { PLATFORMS } from '@/lib/platformFees'
 import {
   TrendingUp,
   TrendingDown,
-  DollarSign,
+  Wallet,
   Percent,
   Target,
   AlertTriangle,
@@ -124,7 +124,7 @@ export function ResultsPanel() {
           value={fmt(output.netPayout)}
           subValue={`After all fees for ${input.quantity} unit${input.quantity > 1 ? 's' : ''}`}
           highlight
-          icon={DollarSign}
+          icon={Wallet}
         />
         <MetricCard
           label="Total Profit"
@@ -157,13 +157,22 @@ export function ResultsPanel() {
           neutral
         />
         <MetricCard
-          label="Total Fees"
+          label="Total (Platform) Fees"
           value={fmt(output.totalFees)}
           positive={false}
         />
+        {output.outputGstAmount > 0 && (
+           <MetricCard
+             label="Net Tax Payable"
+             value={fmt(output.netGstPayable)}
+             subValue="Govt GST (after ITC claim)"
+             positive={false}
+           />
+        )}
         <MetricCard
           label="Break-Even Price"
           value={fmt(output.breakEvenPrice)}
+          subValue={output.outputGstAmount > 0 ? "Accounts for Output GST & ITC" : "Minimum price for 0 profit"}
           icon={Target}
           neutral
         />

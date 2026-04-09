@@ -3,9 +3,10 @@
 import { useEffect } from 'react'
 import { useCalculatorStore } from '@/lib/store'
 import { PLATFORMS, getCategoriesForPlatform } from '@/lib/platformFees'
+import { getSuggestedGstRate } from '@/lib/gstLogic'
 import { PlatformSelector } from './PlatformSelector'
-import type { PlatformId } from '@/types'
-import { Info, RotateCcw } from 'lucide-react'
+import { type PlatformId, CURRENCY_SYMBOLS } from '@/types'
+import { Info, RotateCcw, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const TOOLTIP_MAP: Record<string, string> = {
@@ -16,8 +17,10 @@ const TOOLTIP_MAP: Record<string, string> = {
   cogs: 'Your total cost to produce/source one unit of the product.',
   quantity: 'Number of units to calculate for (scales total fees and profit).',
   isCOD: 'Cash on Delivery adds extra charges (typically 2% of sale value in India).',
-  includeGST: 'GST @18% is charged by Indian marketplaces on their commission and fixed fees.',
+  includeGST: 'Input Tax Credit (ITC): GST @18% charged by Indian marketplaces on their fees.',
   includeTCS: 'TCS @1% is withheld by Indian marketplaces on your total sales. Recoverable via GST return.',
+  productGst: 'Output GST: The GST applicable on the actual product sold. Auto-calculated based on category and price.',
+  gstInclusive: 'Is the Selling Price already inclusive of this Product GST?',
 }
 
 function FieldTooltip({ text }: { text: string }) {
@@ -95,6 +98,17 @@ export function CalculatorForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input.platform])
 
+  // Auto-calculate suggested GST rate
+  useEffect(() => {
+    if (input.calculateProductGst && ['amazon-in', 'flipkart', 'meesho'].includes(input.platform)) {
+      const suggestedRate = getSuggestedGstRate(input.category, input.sellingPrice, input.platform);
+      if (input.productGstRate !== suggestedRate) {
+        setInput({ productGstRate: suggestedRate })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input.category, input.sellingPrice, input.platform, input.calculateProductGst])
+
   const handleNumberInput = (key: keyof typeof input, value: string) => {
     const num = parseFloat(value)
     setInput({ [key]: isNaN(num) ? 0 : Math.max(0, num) })
@@ -105,7 +119,7 @@ export function CalculatorForm() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold">Commission Calculator</h2>
+          <h2 className="text-base font-semibold">OpSell AI Calculator</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Results update in real-time
           </p>
@@ -128,6 +142,42 @@ export function CalculatorForm() {
           value={input.platform}
           onChange={(id: PlatformId) => setInput({ platform: id })}
         />
+        
+        {/* Educational 2026 Timeline Alert */}
+        {['amazon-in', 'flipkart'].includes(input.platform) && (
+          <div
+            className={cn(
+              'mt-3 flex items-start gap-3 rounded-xl border px-4 py-3 transition-colors',
+              input.sellingPrice && input.sellingPrice <= 1000
+                ? 'border-[#00E5A0]/30 bg-[#00E5A0]/5'
+                : 'border-border/40 bg-muted/10'
+            )}
+          >
+            <div className="flex-shrink-0 mt-0.5">
+              {input.sellingPrice && input.sellingPrice <= 1000 ? (
+                <CheckCircle2 className="h-4 w-4 text-[#00E5A0]" />
+              ) : (
+                <Info className="h-4 w-4 text-blue-400" />
+              )}
+            </div>
+            <div>
+              <p
+                className={cn(
+                  'text-sm font-semibold transition-colors',
+                  input.sellingPrice && input.sellingPrice <= 1000 ? 'text-[#00E5A0]' : 'text-foreground'
+                )}
+              >
+                {input.sellingPrice && input.sellingPrice <= 1000
+                  ? '0% Commission Active'
+                  : '2026 E-commerce Tracker'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                To fight Meesho, this platform dropped referral fees to 0% for items under ₹1,000 in early 2026.
+                {!(input.sellingPrice && input.sellingPrice <= 1000) && ' Lower your selling price below ₹1,000 to qualify.'}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Divider */}
@@ -139,7 +189,7 @@ export function CalculatorForm() {
         <InputField
           label="Selling Price"
           tooltipKey="sellingPrice"
-          prefix={platform?.currency ?? ''}
+          prefix={CURRENCY_SYMBOLS[input.currency] ?? platform?.currency ?? ''}
         >
           <input
             type="number"
@@ -171,7 +221,7 @@ export function CalculatorForm() {
         <InputField
           label="Cost of Goods (per unit)"
           tooltipKey="cogs"
-          prefix={platform?.currency ?? ''}
+          prefix={CURRENCY_SYMBOLS[input.currency] ?? platform?.currency ?? ''}
         >
           <input
             type="number"
@@ -199,22 +249,76 @@ export function CalculatorForm() {
           />
         </InputField>
 
-        {/* Shipping Cost */}
-        <InputField
-          label="Shipping Cost (per unit)"
-          tooltipKey="shippingCost"
-          prefix={platform?.currency ?? ''}
-        >
-          <input
-            type="number"
-            min="0"
-            step="any"
-            value={input.shippingCost || ''}
-            onChange={(e) => handleNumberInput('shippingCost', e.target.value)}
-            placeholder="50"
-            className={cn(inputClass, 'pl-9')}
-          />
-        </InputField>
+        {/* Fulfillment Mode Toggle */}
+        <div className="col-span-full pt-2">
+          <div className="flex items-center justify-between rounded-xl border border-border/40 bg-muted/10 px-4 py-3">
+            <div className="space-y-1">
+              <span className="text-sm font-medium">Use Platform Fulfillment?</span>
+              <p className="text-xs text-muted-foreground mr-4">
+                Enable this if using FBA or Flipkart Assured. Turns shipping into a platform fee to claim 18% ITC.
+              </p>
+            </div>
+            <ToggleOption
+              label={input.fulfillmentMode === 'platform' ? 'FBA/FBF' : 'Self-Ship'}
+              tooltip="Switches from standard shipping costs to platform-billed Pick & Pack + Weight Handling fees."
+              checked={input.fulfillmentMode === 'platform'}
+              onChange={(v) => setInput({ fulfillmentMode: v ? 'platform' : 'seller' })}
+              color="#3B82F6"
+            />
+          </div>
+        </div>
+
+        {/* Shipping / Fulfillment Costs */}
+        {input.fulfillmentMode === 'platform' ? (
+          <>
+            <InputField
+              label="Pick & Pack Fee"
+              tooltipKey="pickAndPackFee"
+              prefix={CURRENCY_SYMBOLS[input.currency] ?? platform?.currency ?? ''}
+            >
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={input.pickAndPackFee || ''}
+                onChange={(e) => handleNumberInput('pickAndPackFee', e.target.value)}
+                placeholder="15"
+                className={cn(inputClass, 'pl-9 border-[#EC4899]/30 focus:border-[#EC4899] bg-[#EC4899]/5')}
+              />
+            </InputField>
+            <InputField
+              label="FBA / FBF Shipping"
+              tooltipKey="platformShipping"
+              prefix={CURRENCY_SYMBOLS[input.currency] ?? platform?.currency ?? ''}
+            >
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={input.platformShippingFee || ''}
+                onChange={(e) => handleNumberInput('platformShippingFee', e.target.value)}
+                placeholder="40"
+                className={cn(inputClass, 'pl-9 border-[#0EA5E9]/30 focus:border-[#0EA5E9] bg-[#0EA5E9]/5')}
+              />
+            </InputField>
+          </>
+        ) : (
+          <InputField
+            label="Shipping Cost (Self-Ship)"
+            tooltipKey="shippingCost"
+            prefix={CURRENCY_SYMBOLS[input.currency] ?? platform?.currency ?? ''}
+          >
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={input.shippingCost || ''}
+              onChange={(e) => handleNumberInput('shippingCost', e.target.value)}
+              placeholder="50"
+              className={cn(inputClass, 'pl-9')}
+            />
+          </InputField>
+        )}
 
         {/* Currency override */}
         <InputField label="Currency">
@@ -234,12 +338,66 @@ export function CalculatorForm() {
         </InputField>
       </div>
 
-      {/* Toggles */}
-      <div className="space-y-3">
+      {/* Taxes & Compliance (New Section) */}
+      <div className="space-y-4">
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          Options
+          Taxes & Compliance
         </p>
-        <div className="grid gap-2 sm:grid-cols-3">
+
+        {['amazon-in', 'flipkart', 'meesho'].includes(input.platform) && (
+          <div className="space-y-4 rounded-xl border border-border/40 p-4 bg-muted/10">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <span className="text-sm font-medium">Calculate Product GST (Output GST)</span>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  Tax required on the product sold.
+                </p>
+              </div>
+              <ToggleOption
+                label={input.calculateProductGst ? 'Enabled' : 'Disabled'}
+                tooltip={TOOLTIP_MAP.productGst}
+                checked={input.calculateProductGst}
+                onChange={(v) => setInput({ calculateProductGst: v })}
+                color="#10B981"
+              />
+            </div>
+
+            {input.calculateProductGst && (
+              <div className="grid gap-4 sm:grid-cols-2 pt-3 border-t border-border/30">
+                <InputField label="Product GST Rate" tooltipKey="productGst">
+                  <select
+                    value={input.productGstRate}
+                    onChange={(e) => setInput({ productGstRate: parseFloat(e.target.value) })}
+                    className={selectClass}
+                  >
+                    <option value={0}>0% (Exempt)</option>
+                    <option value={0.03}>3% (Jewelry)</option>
+                    <option value={0.05}>5%</option>
+                    <option value={0.12}>12%</option>
+                    <option value={0.18}>18% (Standard)</option>
+                    <option value={0.28}>28%</option>
+                  </select>
+                </InputField>
+
+                <InputField label="Price includes GST?" tooltipKey="gstInclusive">
+                  <select
+                    value={input.isGstInclusive ? 'yes' : 'no'}
+                    onChange={(e) => setInput({ isGstInclusive: e.target.value === 'yes' })}
+                    className={selectClass}
+                  >
+                    <option value="yes">Yes (Inclusive)</option>
+                    <option value="no">No (Exclusive)</option>
+                  </select>
+                </InputField>
+                <div className="sm:col-span-2 text-xs text-muted-foreground/80 mt-[-4px]">
+                  <em>Rate auto-updates based on {platform?.shortName} category {input.category} & price.</em>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="grid gap-2 sm:grid-cols-3 mt-4">
           {/* COD Toggle */}
           {platform?.hasCOD && (
             <ToggleOption
@@ -254,7 +412,7 @@ export function CalculatorForm() {
           {/* GST Toggle */}
           {platform?.hasGST && (
             <ToggleOption
-              label="Include GST (18%)"
+              label="Fee GST (ITC)"
               tooltip={TOOLTIP_MAP.includeGST}
               checked={input.includeGST}
               onChange={(v) => setInput({ includeGST: v })}

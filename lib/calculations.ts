@@ -56,28 +56,36 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
   const platform = PLATFORMS[input.platform]
   if (!platform) throw new Error(`Unknown platform: ${input.platform}`)
 
-  const {
-    sellingPrice: P,
-    shippingCost: S,
-    cogs: COGS,
-    quantity: Q,
-    isCOD,
-    includeGST,
-    includeTCS,
-    customCommissionRate,
-    customFixedFee,
-  } = input
+  const P = input.sellingPrice
+  // If platform fulfillment, override S with the platform's native shipping fee
+  const S = input.fulfillmentMode === 'platform' ? input.platformShippingFee : input.shippingCost
+  const COGS = input.cogs
+  const Q = input.quantity
+  const { isCOD, includeGST, includeTCS, productGstRate, calculateProductGst, isGstInclusive, customCommissionRate, customFixedFee } = input
+
+  // Determine FBA pick and pack if toggled
+  const pickAndPackFee = input.fulfillmentMode === 'platform' ? input.pickAndPackFee : 0
 
   // Find category config
   const categoryConfig = platform.categories.find(
     (c) => c.name === input.category
   ) ?? platform.categories[0]
 
+  let derivedCommissionRate = categoryConfig.commissionRate
+  let derivedMinFee = categoryConfig.minFee ?? 0
+  
+  // 2026 E-commerce update: Amazon India and Flipkart 0% commission under 1000
+  if (['amazon-in', 'flipkart'].includes(input.platform) && P <= 1000) {
+    derivedCommissionRate = 0
+    derivedMinFee = 0
+  }
+
   // Override with custom rates if provided
   const effectiveCategoryConfig = {
     ...categoryConfig,
-    commissionRate: customCommissionRate ?? categoryConfig.commissionRate,
+    commissionRate: customCommissionRate ?? derivedCommissionRate,
     fixedFee: customFixedFee ?? (categoryConfig.fixedFee ?? 0),
+    minFee: derivedMinFee,
   }
 
   // 1. Referral Fee
@@ -92,8 +100,13 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
     : 0
 
   // 4. GST on platform fees (India platforms)
+  // For FBA, pick & pack and Amazon-billed shipping also attract the 18% platform GST block!
+  let taxablePlatformFees = referralFee + fixedFee + codFee
+  if (input.fulfillmentMode === 'platform') {
+    taxablePlatformFees += pickAndPackFee + S
+  }
   const gstOnFees = includeGST && platform.hasGST
-    ? round2((referralFee + fixedFee + codFee) * platform.gstRate)
+    ? round2(taxablePlatformFees * platform.gstRate)
     : 0
 
   // 5. TCS (India: 1% withheld on total sale value)
@@ -113,6 +126,7 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
   const totalFeesPerUnit = round2(
     referralFee +
     fixedFee +
+    pickAndPackFee +
     codFee +
     gstOnFees +
     tcs +
@@ -129,11 +143,30 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
   // 11. Net Payout
   const netPayout = round2(grossRevenue - totalFees)
 
-  // 12. COGS total
+  // 12. Output GST (Product GST)
+  let outputGstAmount = 0
+  if (calculateProductGst && productGstRate > 0 && ['amazon-in', 'flipkart', 'meesho'].includes(input.platform)) {
+    if (isGstInclusive) {
+      // P = Base + Base*Rate => Base = P / (1+Rate)
+      // GST = P - Base = P - P / (1+Rate) = P * Rate / (1+Rate)
+      const gstPerUnit = P - (P / (1 + productGstRate))
+      outputGstAmount = round2(gstPerUnit * Q)
+    } else {
+      const gstPerUnit = P * productGstRate
+      outputGstAmount = round2(gstPerUnit * Q)
+    }
+  }
+
+  // 13. Net GST Payable to Government = Output GST - Input Tax Credit (GST on fees)
+  // If ITC is more than Output GST, it's a credit, not payable (kept at 0 minimum for profit calculation)
+  // Actually, usually ITC offsets Output GST. If it's negative, it's a credit. We subtract netGstPayable from profit.
+  const netGstPayable = round2(outputGstAmount - (gstOnFees * Q))
+
+  // 14. COGS total
   const cogsTotal = round2(COGS * Q)
 
-  // 13. Profit
-  const profit = round2(netPayout - cogsTotal)
+  // 15. Profit
+  const profit = round2(netPayout - cogsTotal - netGstPayable)
 
   // 14. Profit Margin (profit / gross revenue * 100)
   const profitMargin =
@@ -144,29 +177,49 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
     cogsTotal > 0 ? round2((profit / cogsTotal) * 100) : 0
 
   // 16. Break-even Price
-  // Solve: P - (P * commRate + fixedFee + codFee_rate*P + gst*(P*commRate+fixedFee+codFee_rate*P) + tcsRate*P + payRate*(P+S) + payFixed + S) - COGS = 0
-  // Simplified linear approximation for break-even
   const effectiveCommRate =
-    effectiveCategoryConfig.commissionRate +
+    derivedCommissionRate +
     (isCOD && platform.hasCOD ? platform.codRate : 0) +
     (includeTCS && platform.hasTCS ? platform.tcsRate : 0)
 
-  const gstMultiplier = includeGST && platform.hasGST ? 1 + platform.gstRate : 1
-  const effectiveRateWithGST = effectiveCommRate * gstMultiplier + platform.paymentRate
+  // Payment fees are charged on Gross + Shipping
+  const varPaymentRate = platform.paymentRate
 
-  const breakEvenPrice =
-    effectiveRateWithGST < 1
-      ? round2(
-          (COGS + fixedFee * gstMultiplier + platform.paymentFixed + S * (1 + platform.paymentRate)) /
-          (1 - effectiveRateWithGST)
-        )
+  let breakEvenPrice = 0
+
+  if (calculateProductGst && productGstRate > 0 && ['amazon-in', 'flipkart', 'meesho'].includes(input.platform)) {
+    // Registered seller: ITC offsets fee GST, so fee GST is not a pure cost. Output GST is a pure cost.
+    const outputGstVarRate = isGstInclusive
+      ? productGstRate / (1 + productGstRate) // effective rate of inclusive GST
+      : productGstRate // exclusive GST rate directly multiplying P
+
+    const totalVarRate = effectiveCommRate + varPaymentRate + outputGstVarRate
+    const totalFixedCosts = COGS + fixedFee + pickAndPackFee + S + (S * varPaymentRate) + platform.paymentFixed
+
+    breakEvenPrice = totalVarRate < 1 
+      ? round2(totalFixedCosts / (1 - totalVarRate))
       : 0
+  } else {
+    // Unregistered seller: GST on fees is an unrecoverable pure cost. No Output GST logic.
+    const gstMultiplier = includeGST && platform.hasGST ? 1 + platform.gstRate : 1
+    
+    // For platform mode, Pick & Pack and S are multiplied by GST as well
+    const fixedPlatformService = input.fulfillmentMode === 'platform' ? fixedFee + pickAndPackFee + S : fixedFee
+    const shippingBase = input.fulfillmentMode === 'platform' ? 0 : S // shipping is already in fixedPlatformService
 
-  // 17. Effective commission rate
+    const totalVarRate = (effectiveCommRate * gstMultiplier) + varPaymentRate
+    const totalFixedCosts = COGS + (fixedPlatformService * gstMultiplier) + shippingBase + (S * varPaymentRate) + platform.paymentFixed
+
+    breakEvenPrice = totalVarRate < 1
+      ? round2(totalFixedCosts / (1 - totalVarRate))
+      : 0
+  }
+
+  // 18. Effective commission rate
   const effectiveCommissionRate =
     P > 0 ? round2((totalFeesPerUnit / P) * 100) : 0
 
-  // 18. Fee breakdown for chart
+  // 19. Fee breakdown for chart
   const feeBreakdown: FeeBreakdownItem[] = [
     {
       name: 'Referral Fee',
@@ -179,27 +232,42 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
       amount: round2(fixedFee * Q),
       color: '#8B5CF6',
       tooltip: 'Flat fee per order',
-    },
-    {
+    }
+  ]
+
+  if (pickAndPackFee > 0) {
+    feeBreakdown.push({
+      name: 'Pick & Pack Fee',
+      amount: round2(pickAndPackFee * Q),
+      color: '#EC4899', // pinkish
+      tooltip: 'Fulfillment processing fee billed by the platform',
+    })
+  }
+
+  if (paymentFeeAmount > 0) {
+    feeBreakdown.push({
       name: 'Payment Fee',
       amount: round2(paymentFeeAmount * Q),
       color: '#3B82F6',
       tooltip: `${(platform.paymentRate * 100).toFixed(2)}% + fixed charge`,
-    },
-    {
+    })
+  }
+  
+  if (shippingFee > 0) {
+    feeBreakdown.push({
       name: 'Shipping',
       amount: round2(shippingFee * Q),
       color: '#0EA5E9',
       tooltip: 'Shipping/logistics cost',
-    },
-  ]
+    })
+  }
 
   if (gstOnFees > 0) {
     feeBreakdown.push({
-      name: 'GST on Fees (18%)',
+      name: '18% GST on Platform Fees',
       amount: round2(gstOnFees * Q),
       color: '#F59E0B',
-      tooltip: '18% GST applied on platform fees',
+      tooltip: '18% tax charged by the platform on their referral and fixed fees. This offsets your final tax liability.',
     })
   }
 
@@ -241,6 +309,8 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
     codFee: round2(codFee * Q),
     totalFees,
     netPayout,
+    outputGstAmount,
+    netGstPayable,
     profit,
     profitMargin,
     roi,
@@ -315,6 +385,8 @@ export function generateCSVData(
     ['COD Fee', `${currency} ${output.codFee}`],
     ['Total Fees', `${currency} ${output.totalFees}`],
     ['Net Payout', `${currency} ${output.netPayout}`],
+    ['Output GST', `${currency} ${output.outputGstAmount}`],
+    ['Net GST Payable', `${currency} ${output.netGstPayable}`],
     ['Profit', `${currency} ${output.profit}`],
     ['Profit Margin', `${output.profitMargin}%`],
     ['ROI', `${output.roi}%`],

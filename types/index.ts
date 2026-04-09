@@ -60,8 +60,14 @@ export interface CalculatorInput {
   isCOD: boolean
   includeGST: boolean
   includeTCS: boolean
+  calculateProductGst: boolean
+  productGstRate: number
+  isGstInclusive: boolean
   customCommissionRate?: number
   customFixedFee?: number
+  fulfillmentMode: 'seller' | 'platform'
+  pickAndPackFee: number
+  platformShippingFee: number
 }
 
 // Individual fee breakdown item
@@ -85,6 +91,8 @@ export interface CalculatorOutput {
   tcs: number
   codFee: number
   totalFees: number
+  outputGstAmount: number
+  netGstPayable: number
   netPayout: number
   profit: number
   profitMargin: number
@@ -108,6 +116,12 @@ export const DEFAULT_INPUT: CalculatorInput = {
   isCOD: false,
   includeGST: true,
   includeTCS: true,
+  calculateProductGst: true,
+  productGstRate: 0.18,
+  isGstInclusive: true,
+  fulfillmentMode: 'seller',
+  pickAndPackFee: 15,
+  platformShippingFee: 40,
 }
 
 // Currency symbols map

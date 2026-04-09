@@ -139,7 +139,7 @@ export function Hero() {
               <div className="h-3 w-3 rounded-full bg-[#FFBD2E]" />
               <div className="h-3 w-3 rounded-full bg-[#28C840]" />
               <span className="ml-3 text-xs text-muted-foreground font-mono">
-                CommCalc — Amazon India · Apparel · ₹1,500
+                OpSell AI Calculator — Amazon India · Apparel · ₹1,500
               </span>
             </div>
 

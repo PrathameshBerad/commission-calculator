@@ -48,7 +48,7 @@ export function Navbar() {
             <TrendingUp className="h-4 w-4 text-[#00E5A0]" />
           </div>
           <span className="text-lg font-bold tracking-tight">
-            Comm<span className="text-[#00E5A0]">Calc</span>
+            OpSell <span className="text-[#00E5A0]">AI</span>
           </span>
         </Link>
 

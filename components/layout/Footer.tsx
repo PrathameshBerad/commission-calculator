@@ -36,7 +36,7 @@ export function Footer() {
                 <TrendingUp className="h-4 w-4 text-[#00E5A0]" />
               </div>
               <span className="text-lg font-bold tracking-tight">
-                Comm<span className="text-[#00E5A0]">Calc</span>
+                OpSell <span className="text-[#00E5A0]">AI</span>
               </span>
             </Link>
             <p className="mt-4 max-w-xs text-sm text-muted-foreground leading-relaxed">
@@ -85,7 +85,7 @@ export function Footer() {
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border/40 pt-8 sm:flex-row">
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} CommCalc. Built for sellers, by sellers.
+            © {new Date().getFullYear()} OpSell AI. Built for sellers, by sellers.
           </p>
           <p className="text-xs text-muted-foreground">
             Fee data sourced from official platform documentation. Always verify
