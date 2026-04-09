@@ -232,8 +232,8 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
       amount: round2(fixedFee * Q),
       color: '#8B5CF6',
       tooltip: 'Flat fee per order',
-    })
-  }
+    }
+  ]
 
   if (pickAndPackFee > 0) {
     feeBreakdown.push({
@@ -250,14 +250,17 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
       amount: round2(paymentFeeAmount * Q),
       color: '#3B82F6',
       tooltip: `${(platform.paymentRate * 100).toFixed(2)}% + fixed charge`,
-    },
-    {
+    })
+  }
+  
+  if (shippingFee > 0) {
+    feeBreakdown.push({
       name: 'Shipping',
       amount: round2(shippingFee * Q),
       color: '#0EA5E9',
       tooltip: 'Shipping/logistics cost',
-    },
-  ]
+    })
+  }
 
   if (gstOnFees > 0) {
     feeBreakdown.push({
