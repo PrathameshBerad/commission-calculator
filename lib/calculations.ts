@@ -77,9 +77,12 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
   ) ?? platform.categories[0]
 
   let derivedCommissionRate = categoryConfig.commissionRate
+  let derivedMinFee = categoryConfig.minFee ?? 0
+  
   // 2026 E-commerce update: Amazon India and Flipkart 0% commission under 1000
   if (['amazon-in', 'flipkart'].includes(input.platform) && P <= 1000) {
     derivedCommissionRate = 0
+    derivedMinFee = 0
   }
 
   // Override with custom rates if provided
@@ -87,6 +90,7 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
     ...categoryConfig,
     commissionRate: customCommissionRate ?? derivedCommissionRate,
     fixedFee: customFixedFee ?? (categoryConfig.fixedFee ?? 0),
+    minFee: derivedMinFee,
   }
 
   // 1. Referral Fee
