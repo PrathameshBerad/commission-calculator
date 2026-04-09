@@ -6,8 +6,8 @@ import { Footer } from '@/components/layout/Footer'
 
 export const metadata: Metadata = {
   title: {
-    default: 'CommCalc — Marketplace Commission Calculator',
-    template: '%s | CommCalc',
+    default: 'OpSell AI Calculator',
+    template: '%s | OpSell AI',
   },
   description:
     'Free real-time commission calculator for Amazon, Flipkart, Meesho, eBay, Walmart, Shopee, Lazada. Calculate net payout, profit margins, ROI & break-even price instantly.',
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     'india ecommerce fees',
   ],
   openGraph: {
-    title: 'CommCalc — Marketplace Commission Calculator',
+    title: 'OpSell AI Calculator',
     description:
       'Calculate your true profit across 8+ marketplaces instantly. No sign-up required.',
     type: 'website',
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'CommCalc — Marketplace Commission Calculator',
+    title: 'OpSell AI Calculator',
     description: 'Real-time commission calculator for Amazon, Flipkart, Meesho & more.',
   },
   robots: {
@@ -64,6 +64,12 @@ export default function RootLayout({
           disableTransitionOnChange={false}
         >
           <div className="relative flex min-h-screen flex-col">
+            <div className="bg-[#00E5A0] px-4 py-2 text-center text-xs font-semibold text-[#0A0B14] sm:text-sm transition-colors hover:bg-[#00C896]">
+              <a href="https://opsell.in" target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2">
+                <span>🚀 Need help scaling your eCommerce margins? Return to Opsell.in to explore our full suite of seller insights.</span>
+                <span aria-hidden="true">&rarr;</span>
+              </a>
+            </div>
             <Navbar />
             <main className="flex-1">{children}</main>
             <Footer />

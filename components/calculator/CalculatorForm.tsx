@@ -5,7 +5,7 @@ import { useCalculatorStore } from '@/lib/store'
 import { PLATFORMS, getCategoriesForPlatform } from '@/lib/platformFees'
 import { getSuggestedGstRate } from '@/lib/gstLogic'
 import { PlatformSelector } from './PlatformSelector'
-import type { PlatformId } from '@/types'
+import { type PlatformId, CURRENCY_SYMBOLS } from '@/types'
 import { Info, RotateCcw, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -119,7 +119,7 @@ export function CalculatorForm() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold">Commission Calculator</h2>
+          <h2 className="text-base font-semibold">OpSell AI Calculator</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Results update in real-time
           </p>
@@ -189,7 +189,7 @@ export function CalculatorForm() {
         <InputField
           label="Selling Price"
           tooltipKey="sellingPrice"
-          prefix={platform?.currency ?? ''}
+          prefix={CURRENCY_SYMBOLS[input.currency] ?? platform?.currency ?? ''}
         >
           <input
             type="number"
@@ -221,7 +221,7 @@ export function CalculatorForm() {
         <InputField
           label="Cost of Goods (per unit)"
           tooltipKey="cogs"
-          prefix={platform?.currency ?? ''}
+          prefix={CURRENCY_SYMBOLS[input.currency] ?? platform?.currency ?? ''}
         >
           <input
             type="number"
@@ -274,7 +274,7 @@ export function CalculatorForm() {
             <InputField
               label="Pick & Pack Fee"
               tooltipKey="pickAndPackFee"
-              prefix={platform?.currency ?? ''}
+              prefix={CURRENCY_SYMBOLS[input.currency] ?? platform?.currency ?? ''}
             >
               <input
                 type="number"
@@ -289,7 +289,7 @@ export function CalculatorForm() {
             <InputField
               label="FBA / FBF Shipping"
               tooltipKey="platformShipping"
-              prefix={platform?.currency ?? ''}
+              prefix={CURRENCY_SYMBOLS[input.currency] ?? platform?.currency ?? ''}
             >
               <input
                 type="number"
@@ -306,7 +306,7 @@ export function CalculatorForm() {
           <InputField
             label="Shipping Cost (Self-Ship)"
             tooltipKey="shippingCost"
-            prefix={platform?.currency ?? ''}
+            prefix={CURRENCY_SYMBOLS[input.currency] ?? platform?.currency ?? ''}
           >
             <input
               type="number"
