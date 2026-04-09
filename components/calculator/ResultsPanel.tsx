@@ -172,6 +172,7 @@ export function ResultsPanel() {
         <MetricCard
           label="Break-Even Price"
           value={fmt(output.breakEvenPrice)}
+          subValue={output.outputGstAmount > 0 ? "Accounts for Output GST & ITC" : "Minimum price for 0 profit"}
           icon={Target}
           neutral
         />

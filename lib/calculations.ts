@@ -172,23 +172,38 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
     cogsTotal > 0 ? round2((profit / cogsTotal) * 100) : 0
 
   // 16. Break-even Price
-  // Solve: P - (P * commRate + fixedFee + codFee_rate*P + gst*(P*commRate+fixedFee+codFee_rate*P) + tcsRate*P + payRate*(P+S) + payFixed + S) - COGS = 0
-  // Simplified linear approximation for break-even
   const effectiveCommRate =
-    effectiveCategoryConfig.commissionRate +
+    derivedCommissionRate +
     (isCOD && platform.hasCOD ? platform.codRate : 0) +
     (includeTCS && platform.hasTCS ? platform.tcsRate : 0)
 
-  const gstMultiplier = includeGST && platform.hasGST ? 1 + platform.gstRate : 1
-  const effectiveRateWithGST = effectiveCommRate * gstMultiplier + platform.paymentRate
+  // Payment fees are charged on Gross + Shipping
+  const varPaymentRate = platform.paymentRate
 
-  const breakEvenPrice =
-    effectiveRateWithGST < 1
-      ? round2(
-          (COGS + fixedFee * gstMultiplier + platform.paymentFixed + S * (1 + platform.paymentRate)) /
-          (1 - effectiveRateWithGST)
-        )
+  let breakEvenPrice = 0
+
+  if (calculateProductGst && productGstRate > 0 && ['amazon-in', 'flipkart', 'meesho'].includes(input.platform)) {
+    // Registered seller: ITC offsets fee GST, so fee GST is not a pure cost. Output GST is a pure cost.
+    const outputGstVarRate = isGstInclusive
+      ? productGstRate / (1 + productGstRate) // effective rate of inclusive GST
+      : productGstRate // exclusive GST rate directly multiplying P
+
+    const totalVarRate = effectiveCommRate + varPaymentRate + outputGstVarRate
+    const totalFixedCosts = COGS + fixedFee + S + (S * varPaymentRate) + platform.paymentFixed
+
+    breakEvenPrice = totalVarRate < 1 
+      ? round2(totalFixedCosts / (1 - totalVarRate))
       : 0
+  } else {
+    // Unregistered seller: GST on fees is an unrecoverable pure cost. No Output GST logic.
+    const gstMultiplier = includeGST && platform.hasGST ? 1 + platform.gstRate : 1
+    const totalVarRate = (effectiveCommRate * gstMultiplier) + varPaymentRate
+    const totalFixedCosts = COGS + (fixedFee * gstMultiplier) + S + (S * varPaymentRate) + platform.paymentFixed
+
+    breakEvenPrice = totalVarRate < 1
+      ? round2(totalFixedCosts / (1 - totalVarRate))
+      : 0
+  }
 
   // 18. Effective commission rate
   const effectiveCommissionRate =
