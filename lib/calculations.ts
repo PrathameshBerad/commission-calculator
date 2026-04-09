@@ -5,6 +5,7 @@ import type {
   PlatformId,
 } from '@/types'
 import { PLATFORMS } from './platformFees'
+import { calculateDynamicShipping } from './shippingLogic'
 
 /**
  * Calculate referral fee using tiered or flat rate
@@ -57,14 +58,26 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
   if (!platform) throw new Error(`Unknown platform: ${input.platform}`)
 
   const P = input.sellingPrice
-  // If platform fulfillment, override S with the platform's native shipping fee
-  const S = input.fulfillmentMode === 'platform' ? input.platformShippingFee : input.shippingCost
   const COGS = input.cogs
   const Q = input.quantity
-  const { isCOD, includeGST, includeTCS, productGstRate, calculateProductGst, isGstInclusive, customCommissionRate, customFixedFee } = input
+  const { isCOD, includeGST, includeTCS, productGstRate, calculateProductGst, isGstInclusive, customCommissionRate, customFixedFee, useCustomShippingOverride } = input
 
-  // Determine FBA pick and pack if toggled
-  const pickAndPackFee = input.fulfillmentMode === 'platform' ? input.pickAndPackFee : 0
+  // Generate dynamic shipping metrics
+  const dynamicLogistics = calculateDynamicShipping(
+    input.platform,
+    input.weightInGrams || 500,
+    input.shippingZone || 'national',
+    input.fulfillmentMode
+  )
+
+  // Use override inputs if custom active, otherwise lock to computed physical tiers
+  let S = input.fulfillmentMode === 'platform' ? input.platformShippingFee : input.shippingCost
+  let pickAndPackFee = input.fulfillmentMode === 'platform' ? input.pickAndPackFee : 0
+
+  if (!useCustomShippingOverride) {
+    S = dynamicLogistics.shippingFee
+    pickAndPackFee = dynamicLogistics.pickAndPackFee
+  }
 
   // Find category config
   const categoryConfig = platform.categories.find(

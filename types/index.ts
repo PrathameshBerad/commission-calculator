@@ -56,6 +56,8 @@ export interface CalculatorInput {
   shippingCost: number
   cogs: number
   quantity: number
+  weightInGrams: number
+  shippingZone: 'local' | 'regional' | 'national'
   currency: Currency
   isCOD: boolean
   includeGST: boolean
@@ -66,6 +68,7 @@ export interface CalculatorInput {
   customCommissionRate?: number
   customFixedFee?: number
   fulfillmentMode: 'seller' | 'platform'
+  useCustomShippingOverride: boolean
   pickAndPackFee: number
   platformShippingFee: number
 }
@@ -112,6 +115,8 @@ export const DEFAULT_INPUT: CalculatorInput = {
   shippingCost: 50,
   cogs: 800,
   quantity: 1,
+  weightInGrams: 500,
+  shippingZone: 'national',
   currency: 'INR',
   isCOD: false,
   includeGST: true,
@@ -120,6 +125,7 @@ export const DEFAULT_INPUT: CalculatorInput = {
   productGstRate: 0.18,
   isGstInclusive: true,
   fulfillmentMode: 'seller',
+  useCustomShippingOverride: false,
   pickAndPackFee: 15,
   platformShippingFee: 40,
 }
