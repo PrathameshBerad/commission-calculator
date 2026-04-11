@@ -3,6 +3,7 @@ import type {
   CalculatorOutput,
   FeeBreakdownItem,
   PlatformId,
+  PlatformCategory,
 } from '@/types'
 import { PLATFORMS } from './platformFees'
 
@@ -50,9 +51,32 @@ function round2(value: number): number {
 }
 
 /**
+ * Resolves the closing (fixed) fee for an order.
+ * Supports price-based tier lookups (e.g. Amazon India) via closingFeeTiers.
+ * Falls back to the category's fixedFee when no tiers are defined.
+ * customFixedFee, when provided, always takes precedence.
+ */
+function getClosingFee(
+  price: number,
+  category: PlatformCategory,
+  customFixedFee?: number
+): number {
+  if (customFixedFee !== undefined) return customFixedFee
+  if (category.closingFeeTiers && category.closingFeeTiers.length > 0) {
+    for (const tier of category.closingFeeTiers) {
+      if (tier.maxPrice === undefined || price <= tier.maxPrice) {
+        return tier.fee
+      }
+    }
+  }
+  return category.fixedFee ?? 0
+}
+
+/**
  * Main calculation function
  */
 export function calculate(input: CalculatorInput): CalculatorOutput {
+  if (input.sellingPrice <= 0) throw new Error('Selling price must be greater than zero')
   const platform = PLATFORMS[input.platform]
   if (!platform) throw new Error(`Unknown platform: ${input.platform}`)
 
@@ -84,15 +108,14 @@ export function calculate(input: CalculatorInput): CalculatorOutput {
   const effectiveCategoryConfig = {
     ...categoryConfig,
     commissionRate: customCommissionRate ?? derivedCommissionRate,
-    fixedFee: customFixedFee ?? (categoryConfig.fixedFee ?? 0),
     minFee: derivedMinFee,
   }
 
   // 1. Referral Fee
   const referralFee = round2(calculateReferralFee(P, effectiveCategoryConfig))
 
-  // 2. Fixed Fee
-  const fixedFee = round2(effectiveCategoryConfig.fixedFee ?? 0)
+  // 2. Fixed Fee (uses price-based tiers for Amazon India, flat fee otherwise)
+  const fixedFee = round2(getClosingFee(P, effectiveCategoryConfig, customFixedFee))
 
   // 3. COD Fee (if applicable)
   const codFee = isCOD && platform.hasCOD

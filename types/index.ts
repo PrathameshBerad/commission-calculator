@@ -17,6 +17,12 @@ export interface FeeTier {
   rate: number
 }
 
+// Tier for price-based closing fees (e.g. Amazon India)
+export interface ClosingFeeTier {
+  maxPrice?: number   // undefined means "above the last tier"
+  fee: number
+}
+
 // A single product category with its fee structure
 export interface PlatformCategory {
   name: string
@@ -24,6 +30,7 @@ export interface PlatformCategory {
   minFee?: number
   fixedFee?: number
   tiers?: FeeTier[]
+  closingFeeTiers?: ClosingFeeTier[]
 }
 
 // Full platform configuration
@@ -46,6 +53,8 @@ export interface PlatformConfig {
   shippingFeeDefault: number
   categories: PlatformCategory[]
   description: string
+  lastUpdated?: string
+  feeSource?: string
 }
 
 // Calculator form input
